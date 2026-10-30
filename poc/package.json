@@ -1,0 +1,23 @@
+{
+  "name": "instagram-manager-poc",
+  "private": true,
+  "type": "module",
+  "description": "Prova de conceito da Instagram Graph API (fase 0) — publica só na conta de teste",
+  "scripts": {
+    "start": "tsx --env-file-if-exists=.env src/index.ts",
+    "midias": "tsx src/midias.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "3.1148.0",
+    "@aws-sdk/s3-request-presigner": "3.1148.0"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.2",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3"
+  }
+}
