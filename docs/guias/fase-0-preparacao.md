@@ -21,6 +21,11 @@ Por quê: os testes vão publicar e apagar posts. Fazemos isso numa conta sem p�
 3. Converta para conta profissional: **Configurações → Tipo de conta e ferramentas → Mudar para conta profissional → Empresa**.
 4. Crie uma **Página do Facebook** para ela, no seu Business Portfolio:
    - [business.facebook.com](https://business.facebook.com) → **Configurações** → **Contas → Páginas → Adicionar → Criar uma nova Página**. Nome: `Instagram Manager Teste`.
+   - **Se der "Unable to add Facebook Page / An error occurred while creating the Page"**, crie a Página pelo seu perfil pessoal e depois traga-a para o Portfolio:
+     1. Num navegador de computador, sem bloqueador de anúncios (ou numa janela anônima), abra [facebook.com/pages/create](https://www.facebook.com/pages/create). Nome: `Instagram Manager Teste`, categoria: `Software` (ou qualquer outra).
+     2. Volte em **business.facebook.com → Configurações → Contas → Páginas → Adicionar → Adicionar uma Página** (a opção de Página *existente*, e não "Criar") e escolha a Página recém-criada.
+     3. Se ainda falhar, pule este passo: no app do Instagram da conta de teste, **Editar perfil → Página → Criar Página do Facebook** cria e vincula a Página de uma vez. Depois adicione essa Página ao Portfolio pelo item 2.
+   - O erro costuma ser temporário (Portfolio ou perfil recém-criado, limite de criação de Páginas). Se nada funcionar, espere algumas horas e tente de novo.
 5. Vincule a conta do Instagram à Página e ao Portfolio:
    - **Configurações → Contas → Contas do Instagram → Adicionar** e faça login com a conta de teste.
    - Na Página: **Configurações → Contas vinculadas → Instagram → Conectar**.
@@ -35,6 +40,8 @@ Por quê: os testes vão publicar e apagar posts. Fazemos isso numa conta sem p�
 2. Nome: `Instagram Manager`. E-mail de contato: o seu.
 3. Caso de uso: escolha a opção de **gerenciar mensagens e conteúdo no Instagram** (ou "Outro" → tipo **Empresa/Business**, se essa opção não aparecer).
 4. Vincule o app ao seu **Business Portfolio** quando for perguntado.
+
+   > O app **não** se conecta à conta do Instagram nesta etapa. Se o painel oferecer **"Configuração da API com login do Instagram"** / "Adicionar conta do Instagram" / "Gerar token de acesso", **ignore**: esse é outro fluxo (um token por conta, sem Business Portfolio). Nós usamos o fluxo **com login do Facebook**, e a conta de teste chega ao app pelo System User, na etapa C. A etapa B não depende da A.
 5. Depois de criado, em **Configurações do app → Básico**, anote:
    - **ID do app** (pode me mandar, não é secreto)
    - **Chave secreta do app** (App Secret) → **gerenciador de senhas, não me mande**
