@@ -27,9 +27,13 @@ jobs:
       - run: pnpm test
       - run: pnpm db:migrate
       - run: pnpm build
-      # ensaio de backup/restauração contra o banco recém-migrado
-      - run: scripts/backup/testar-backup.sh
-        env: { PGHOST: localhost, PGPORT: "5432", PGPASSWORD: instagram }
+      # ensaio de backup/restauração contra o banco recém-migrado, dentro da própria imagem de backup (cliente
+      # PostgreSQL 16, igual ao servidor; o cliente do runner é mais novo e gera dumps que o 16 não restaura)
+      - name: Ensaio de backup/restauração
+        run: |
+          docker build -q -f docker/backup.Dockerfile -t instagram-manager-backup:ci .
+          docker run --rm --network host -e PGHOST=localhost -e PGPORT=5432 -e PGPASSWORD=instagram \
+            instagram-manager-backup:ci bash scripts/backup/testar-backup.sh
 
   poc:
     runs-on: ubuntu-latest
