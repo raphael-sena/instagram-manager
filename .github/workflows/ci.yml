@@ -16,6 +16,10 @@ jobs:
         options: --health-cmd "pg_isready -U instagram" --health-interval 3s --health-retries 20
     env:
       DATABASE_URL: postgres://instagram:instagram@localhost:5432/instagram
+      # valores só de teste
+      APP_ENCRYPTION_KEY: Y2ktY2ktY2ktY2ktY2ktY2ktY2ktY2ktY2ktY2ktY2k=
+      AUTH_SECRET: ci-auth-secret-ci-auth-secret-ci-auth
+      SETUP_TOKEN: ci-setup-token-ci-setup-token
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -24,9 +28,15 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
       - run: pnpm typecheck
-      - run: pnpm test
       - run: pnpm db:migrate
+      - run: pnpm test
       - run: pnpm build
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm e2e
+        env: { CI: "true" }
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with: { name: playwright, path: test-results }
       # ensaio de backup/restauração contra o banco recém-migrado, dentro da própria imagem de backup (cliente
       # PostgreSQL 16, igual ao servidor; o cliente do runner é mais novo e gera dumps que o 16 não restaura)
       - name: Ensaio de backup/restauração

@@ -41,6 +41,10 @@ services:
       # DB_PASSWORD é hexadecimal (docs/deploy.md): entra na URL sem escape
       DATABASE_URL: postgres://instagram:${DB_PASSWORD}@postgres:5432/instagram
       APP_VERSION: ${APP_TAG}
+      APP_ENCRYPTION_KEY: ${APP_ENCRYPTION_KEY:?defina APP_ENCRYPTION_KEY}
+      AUTH_SECRET: ${AUTH_SECRET:?defina AUTH_SECRET}
+      SETUP_TOKEN: ${SETUP_TOKEN:?defina SETUP_TOKEN}
+      AUTH_URL: https://instagram.kvaris.com.br
       NODE_OPTIONS: --max-old-space-size=256
       TZ: America/Sao_Paulo
     healthcheck:
@@ -60,6 +64,8 @@ services:
     environment:
       DATABASE_URL: postgres://instagram:${DB_PASSWORD}@postgres:5432/instagram
       APP_VERSION: ${APP_TAG}
+      # só a chave-mestra: o worker não recebe os segredos de login (AUTH_SECRET, SETUP_TOKEN)
+      APP_ENCRYPTION_KEY: ${APP_ENCRYPTION_KEY}
       HEARTBEAT_FILE: /tmp/worker-heartbeat
       NODE_OPTIONS: --max-old-space-size=256
       TZ: America/Sao_Paulo

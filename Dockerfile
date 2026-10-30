@@ -16,7 +16,7 @@ WORKDIR /app
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 HOSTNAME=0.0.0.0
 COPY --from=build --chown=node:node /app/.next/standalone ./
 COPY --from=build --chown=node:node /app/.next/static ./.next/static
-COPY --from=build --chown=node:node /app/dist/migrate.mjs /app/dist/migrate.mjs.map ./dist/
+COPY --from=build --chown=node:node /app/dist/migrate.mjs /app/dist/migrate.mjs.map /app/dist/admin-reset.mjs /app/dist/admin-reset.mjs.map ./dist/
 COPY --from=build --chown=node:node /app/drizzle ./drizzle
 USER node
 EXPOSE 3000

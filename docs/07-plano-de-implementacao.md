@@ -77,13 +77,15 @@ Código pronto (PR da fundação). Falta a parte manual (primeira linha) e o pri
 
 ## Fase 2 — Setup, login e painel de admin (M)
 
-- [ ] Módulo de criptografia (AES-256-GCM com `APP_ENCRYPTION_KEY`) + testes.
-- [ ] Tabelas: `configuracao` (chave, valor criptografado, atualizado_em) e `auditoria`.
-- [ ] Assistente **`/setup`**, protegido por `SETUP_TOKEN`: App ID/Secret → login com Facebook → trava.
-- [ ] **Auth.js**: provedor Facebook (aceita só o ID autorizado) + **link mágico** via Resend (só o e-mail do admin, uso único, 15 min, limite de tentativas).
-- [ ] Comando `admin:reset` (reabre o `/setup`).
-- [ ] **Painel de admin**: Meta, R2, Resend e configurações gerais. Campos somente escrita, botões "Testar", log de auditoria.
-- [ ] Layout base responsivo (menu inferior no celular, lateral no desktop).
+- [x] Módulo de criptografia (AES-256-GCM com `APP_ENCRYPTION_KEY`) + testes.
+- [x] Tabelas: `configuracao` (chave, valor criptografado, atualizado_em) e `auditoria`.
+- [x] Assistente **`/setup`**, protegido por `SETUP_TOKEN`: App ID/Secret → login com Facebook → trava.
+- [x] **Auth.js**: provedor Facebook (aceita só o ID autorizado) + **link mágico** via Resend (só o e-mail do admin, uso único, 15 min, limite de tentativas).
+- [x] Comando `admin:reset` (reabre o `/setup`).
+- [x] **Painel de admin**: Meta, R2, Resend e configurações gerais. Campos somente escrita, botões "Testar", log de auditoria.
+- [x] Layout base responsivo (cabeçalho com sessão e "Sair"; o menu de navegação entra junto com as telas de contas e publicação).
+
+Código pronto, com testes E2E (celular e desktop) do setup e do painel. Falta validar com o app real da Meta: login com Facebook, link mágico e os botões de teste.
 
 **Pronto quando:** consigo entrar pelo Facebook e pelo link mágico, e todas as integrações passam no "Testar".
 
