@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  app:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env: { POSTGRES_DB: instagram, POSTGRES_USER: instagram, POSTGRES_PASSWORD: instagram }
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U instagram" --health-interval 3s --health-retries 20
+    env:
+      DATABASE_URL: postgres://instagram:instagram@localhost:5432/instagram
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm db:migrate
+      - run: pnpm build
+      # ensaio de backup/restauração contra o banco recém-migrado
+      - run: scripts/backup/testar-backup.sh
+        env: { PGHOST: localhost, PGPORT: "5432", PGPASSWORD: instagram }
+
+  poc:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: poc } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 12.9.1 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 24, cache: pnpm, cache-dependency-path: poc/pnpm-lock.yaml }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+
+  imagens:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - { nome: web, arquivo: Dockerfile, alvo: web }
+          - { nome: worker, arquivo: Dockerfile, alvo: worker }
+          - { nome: backup, arquivo: docker/backup.Dockerfile, alvo: "" }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.arquivo }}
+          target: ${{ matrix.alvo }}
+          push: false
+          cache-from: type=gha,scope=${{ matrix.nome }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.nome }}

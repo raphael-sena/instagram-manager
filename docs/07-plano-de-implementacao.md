@@ -49,8 +49,8 @@ Um script TypeScript, rodando local, contra a conta de teste, que responde:
 ## Fase 1 — Fundação (M)
 
 - [ ] Manual: bucket `instagram-db-backup` + token "backup" no R2, túnel `instagram` na Cloudflare (`instagram.kvaris.com.br` → `http://web:3000`), domínio de envio no Resend + DNS (SPF/DKIM), secrets no GitHub.
-- [ ] Projeto Next.js + TypeScript (pnpm), ESLint, Prettier, Vitest.
-- [ ] Estrutura de pastas:
+- [x] Projeto Next.js + TypeScript (pnpm), ESLint, Prettier, Vitest.
+- [x] Estrutura de pastas:
   ```
   src/
     app/        # telas e rotas de API (Next.js)
@@ -60,14 +60,16 @@ Um script TypeScript, rodando local, contra a conta de teste, que responde:
     db/         # schema Drizzle, migrations
     lib/        # crypto, storage (R2), e-mail, config
   ```
-- [ ] `docker-compose.dev.yml`: Postgres + MinIO (no lugar do R2 em dev).
-- [ ] Drizzle configurado, primeira migration, tabela de configurações.
-- [ ] Dockerfiles `web` e `worker` (o worker inclui `ffprobe`).
-- [ ] Healthcheck: `/api/health` (web) e heartbeat no banco (worker).
-- [ ] **CI** (GitHub Actions): lint, typecheck e testes em cada PR.
-- [ ] **CD** no padrão do Bellitas: build → GHCR (`sha-<commit>`), cópia do `docker-compose.yml` para `/opt/instagram`, `.env` gerado a partir dos secrets e `docker compose up -d`.
-- [ ] Compose de produção: `postgres`, `web`, `worker`, `cloudflared`, `backup`, com `mem_limit`.
-- [ ] Backup diário criptografado do banco para o R2 + **teste de restauração**.
+- [x] `docker-compose.dev.yml`: Postgres (o storage S3 local entra na fase 4).
+- [x] Drizzle configurado, primeira migration, tabela de configurações.
+- [x] Dockerfiles `web` e `worker` (o worker inclui `ffprobe`).
+- [x] Healthcheck: `/api/health` (web) e heartbeat no banco (worker).
+- [x] **CI** (GitHub Actions): lint, typecheck e testes em cada PR.
+- [x] **CD** no padrão do Bellitas: build → GHCR (`sha-<commit>`), cópia do `docker-compose.yml` para `/opt/instagram`, `.env` gerado a partir dos secrets e `docker compose up -d`.
+- [x] Compose de produção: `postgres`, `web`, `worker`, `cloudflared`, `backup`, com `mem_limit`.
+- [x] Backup diário criptografado do banco para o R2 + **teste de restauração** (roda em todo CI).
+
+Código pronto (PR da fundação). Falta a parte manual (primeira linha) e o primeiro deploy — ver [deploy.md](deploy.md).
 
 **Pronto quando:** `https://instagram.kvaris.com.br` responde com uma página-placeholder, o deploy acontece sozinho no merge e o backup roda.
 

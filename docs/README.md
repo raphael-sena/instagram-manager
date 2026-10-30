@@ -12,6 +12,7 @@ Documentação de produto e de integração, escrita **antes** de qualquer decis
 | [06 — Stack e infraestrutura](06-proposta-de-stack.md) | Arquitetura, tecnologias, hospedagem e custos |
 | [07 — Plano de implementação](07-plano-de-implementacao.md) | Fases, entregas, modelo de dados e riscos |
 | [Guia — Fase 0](guias/fase-0-preparacao.md) | Passo a passo das configurações manuais (Meta, Business Manager, R2) |
+| [Deploy](deploy.md) | Configuração inicial da produção, secrets e operação |
 
 ## Glossário
 

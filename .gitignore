@@ -8,3 +8,10 @@ poc/midias/
 poc/saida/
 
 .DS_Store
+
+# build
+.next/
+dist/
+next-env.d.ts
+*.tsbuildinfo
+backups/

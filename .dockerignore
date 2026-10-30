@@ -1,0 +1,13 @@
+.git
+.github
+.next
+dist
+node_modules
+poc
+docs
+backups
+.env
+.env.*
+*.md
+docker-compose*.yml
+deploy

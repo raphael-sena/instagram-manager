@@ -1,0 +1,22 @@
+# Desenvolvimento local: banco. (Storage S3 local entra na fase 4, junto com o upload de mídias.)
+#   docker compose -f docker-compose.dev.yml up -d
+name: instagram-dev
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: instagram
+      POSTGRES_USER: instagram
+      POSTGRES_PASSWORD: instagram
+      TZ: America/Sao_Paulo
+    ports: ["5434:5432"]
+    volumes: [dados-banco:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U instagram -d instagram"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  dados-banco:
