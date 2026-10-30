@@ -1,0 +1,224 @@
+# =============================================================================
+# CD · Produção — publica as imagens no GHCR e atualiza instagram.kvaris.com.br
+# =============================================================================
+# Gatilhos:
+#   - push na main (merge de PR), depois que o CI do commit passar
+#   - manual (Actions → CD · Produção → Run workflow), opcionalmente com uma imagem já publicada
+#     (ex.: sha-abc123def456) para voltar a uma versão anterior sem recompilar.
+#
+# Na VPS (/opt/instagram) roda deploy/docker-compose.producao.yml. O .env é gerado aqui a partir dos secrets do
+# Environment "production" e nunca fica no repositório. Enquanto faltar algum secret, só as imagens são publicadas.
+# Passo a passo: docs/deploy.md. Adaptado do CD do Bellitas, que roda na mesma VPS.
+# =============================================================================
+name: CD · Produção
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      imagem:
+        description: "Imagem já publicada para reimplantar (ex.: sha-abc123def456). Vazio = compilar o commit escolhido."
+        required: false
+        default: ""
+
+concurrency:
+  group: cd-producao
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+  actions: read
+
+jobs:
+  preparar:
+    name: pré-condições
+    runs-on: ubuntu-latest
+    environment: production
+    outputs:
+      pronto: ${{ steps.segredos.outputs.pronto }}
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      # Segredo não é visível em `if:` de job: este passo expõe a presença deles. Faltando algum obrigatório,
+      # o deploy fica SKIPPED (as imagens ainda são publicadas) em vez de falhar no meio, na VPS.
+      - id: segredos
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_BACKUP_ACCESS_KEY_ID: ${{ secrets.R2_BACKUP_ACCESS_KEY_ID }}
+          R2_BACKUP_SECRET_ACCESS_KEY: ${{ secrets.R2_BACKUP_SECRET_ACCESS_KEY }}
+          CLOUDFLARE_TUNNEL_TOKEN: ${{ secrets.CLOUDFLARE_TUNNEL_TOKEN }}
+        run: |
+          faltando=""
+          for v in SSH_HOST SSH_KEY SSH_KNOWN_HOSTS DB_PASSWORD BACKUP_PASSPHRASE R2_ACCOUNT_ID R2_BACKUP_ACCESS_KEY_ID \
+                   R2_BACKUP_SECRET_ACCESS_KEY CLOUDFLARE_TUNNEL_TOKEN; do
+            [ -n "${!v}" ] || faltando="$faltando $v"
+          done
+          if [ -z "$faltando" ]; then
+            echo "pronto=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "pronto=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Environment production sem:$faltando — imagens publicadas, nada aplicado na VPS."
+          fi
+      - id: tag
+        env:
+          IMAGEM: ${{ inputs.imagem }}
+        run: |
+          if [ -n "$IMAGEM" ]; then
+            [[ "$IMAGEM" =~ ^sha-[0-9a-f]{7,40}$ ]] || { echo "::error::imagem inválida: $IMAGEM"; exit 1; }
+            echo "tag=$IMAGEM" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=sha-${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+          fi
+      # Só publica commit que passou no CI.
+      - name: CI verde neste commit
+        if: inputs.imagem == ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for i in $(seq 1 60); do
+            c=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$GITHUB_SHA&per_page=20" \
+                  --jq '[.workflow_runs[] | select(.status=="completed")] | map(.conclusion) | if length == 0 then "" elif any(. == "success") then "success" else .[0] end')
+            [ "$c" = "success" ] && { echo "CI verde."; exit 0; }
+            [ -n "$c" ] && { echo "::error::CI deste commit terminou com '$c'."; exit 1; }
+            echo "Aguardando o CI deste commit… ($i/60)"; sleep 30
+          done
+          echo "::error::CI deste commit não terminou em 30 minutos."; exit 1
+
+  imagens:
+    name: imagem ${{ matrix.nome }}
+    needs: preparar
+    if: inputs.imagem == ''
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - { nome: web, arquivo: Dockerfile, alvo: web }
+          - { nome: worker, arquivo: Dockerfile, alvo: worker }
+          - { nome: backup, arquivo: docker/backup.Dockerfile, alvo: "" }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.arquivo }}
+          target: ${{ matrix.alvo }}
+          platforms: linux/amd64
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/instagram-manager-${{ matrix.nome }}:${{ needs.preparar.outputs.tag }}
+          cache-from: type=gha,scope=${{ matrix.nome }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.nome }}
+
+  deploy:
+    name: atualizar a VPS
+    needs: [preparar, imagens]
+    # roda também quando "imagens" foi pulado (reimplantar uma imagem existente)
+    if: always() && needs.preparar.result == 'success' && needs.preparar.outputs.pronto == 'true' && (needs.imagens.result == 'success' || needs.imagens.result == 'skipped')
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Chave SSH
+        env:
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy && chmod 600 ~/.ssh/deploy
+          # host conhecido fixo: recusa um servidor que se passe pela VPS
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          cat > ~/.ssh/config <<EOF
+          Host vps
+            HostName ${{ secrets.SSH_HOST }}
+            User ${{ secrets.SSH_USER || 'root' }}
+            Port ${{ secrets.SSH_PORT || 22 }}
+            IdentityFile ~/.ssh/deploy
+            StrictHostKeyChecking yes
+          EOF
+
+      - name: Enviar compose e .env
+        env:
+          APP_TAG: ${{ needs.preparar.outputs.tag }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+          BACKUP_HEARTBEAT_URL: ${{ secrets.BACKUP_HEARTBEAT_URL }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_BACKUP_ACCESS_KEY_ID: ${{ secrets.R2_BACKUP_ACCESS_KEY_ID }}
+          R2_BACKUP_SECRET_ACCESS_KEY: ${{ secrets.R2_BACKUP_SECRET_ACCESS_KEY }}
+          CLOUDFLARE_TUNNEL_TOKEN: ${{ secrets.CLOUDFLARE_TUNNEL_TOKEN }}
+        run: |
+          umask 077
+          [[ "$DB_PASSWORD" =~ ^[0-9a-f]{32,}$ ]] || { echo "::error::DB_PASSWORD deve ser hexadecimal (openssl rand -hex 24)"; exit 1; }
+          envfile="$RUNNER_TEMP/instagram.env"
+          for v in APP_TAG DB_PASSWORD BACKUP_PASSPHRASE BACKUP_HEARTBEAT_URL R2_ACCOUNT_ID R2_BACKUP_ACCESS_KEY_ID \
+                   R2_BACKUP_SECRET_ACCESS_KEY CLOUDFLARE_TUNNEL_TOKEN; do
+            val="${!v}"
+            case "$val" in *$'\n'*|*"'"*) echo "::error::$v tem quebra de linha ou aspas simples"; exit 1 ;; esac
+            printf "%s='%s'\n" "$v" "$val" >> "$envfile"
+          done
+          ssh vps 'install -m 700 -d /opt/instagram'
+          scp -q deploy/docker-compose.producao.yml vps:/opt/instagram/docker-compose.yml
+          scp -q "$envfile" vps:/opt/instagram/.env.novo
+          rm -f "$envfile"
+
+      - name: Backup, atualização e conferência
+        env:
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # login do GHCR separado do Kvaris (/root/.docker) e do Bellitas (/opt/bellitas/.docker); o token vai pela entrada padrão
+          echo "$GHCR_TOKEN" | ssh vps "DOCKER_CONFIG=/opt/instagram/.docker docker login ghcr.io -u '$GHCR_USER' --password-stdin" >/dev/null
+          ssh vps bash -s <<'REMOTO'
+          set -euo pipefail
+          cd /opt/instagram
+          chmod 600 .env.novo
+          export DOCKER_CONFIG=/opt/instagram/.docker
+          trap 'docker logout ghcr.io >/dev/null 2>&1 || true' EXIT
+
+          # 1) backup ANTES de trocar a versão (as migrations rodam no boot do web). Na primeira vez não há o que salvar.
+          if [ -f .env ] && [ -n "$(docker compose ps -q backup 2>/dev/null)" ]; then
+            echo "==> Backup pré-atualização"
+            docker compose exec -T backup bash scripts/backup/backup.sh
+          else
+            echo "==> Primeira instalação: sem backup pré-atualização"
+          fi
+          mv .env.novo .env
+
+          # 2) atualizar
+          docker compose pull -q
+          docker compose up -d --remove-orphans
+
+          # 3) conferir: web e worker saudáveis
+          saudavel() { [ "$(docker inspect -f '{{.State.Health.Status}}' "$(docker compose ps -q "$1")" 2>/dev/null)" = "healthy" ]; }
+          for s in web worker; do
+            for i in $(seq 1 36); do saudavel "$s" && break; sleep 5; done
+            saudavel "$s" || { docker compose logs --tail 80 "$s"; echo "ERRO: $s não ficou saudável"; exit 1; }
+          done
+          docker compose ps
+          docker image prune -f >/dev/null
+          REMOTO
+
+      - name: Página pública
+        run: |
+          for i in $(seq 1 12); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' https://instagram.kvaris.com.br/api/health || true)
+            [ "$code" = "200" ] && { echo "instagram.kvaris.com.br respondeu 200"; exit 0; }
+            echo "ainda $code…"; sleep 10
+          done
+          echo "::error::instagram.kvaris.com.br não respondeu"; exit 1
+
+      - name: Limpar chave
+        if: always()
+        run: rm -rf ~/.ssh

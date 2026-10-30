@@ -1,0 +1,125 @@
+# Instagram Manager em produção (instagram.kvaris.com.br). Usado pelo CD (.github/workflows/cd-producao.yml), que copia
+# este arquivo para /opt/instagram na VPS e grava o .env a partir dos secrets do GitHub. Passo a passo: docs/deploy.md
+#
+#   Internet → Cloudflare → túnel (cloudflared, conexão de SAÍDA) → web:3000 → postgres ← worker
+#
+# Mesmo padrão do Bellitas: nenhuma porta publicada, imagens prontas do GHCR (APP_TAG = sha-<commit>), nada compilado
+# na VPS. A VPS é dividida com o Kvaris staging e o Bellitas: todo serviço tem teto de memória.
+name: instagram
+
+x-logs: &logs
+  logging:
+    driver: json-file
+    options: { max-size: "10m", max-file: "3" }
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    <<: *logs
+    environment:
+      POSTGRES_DB: instagram
+      POSTGRES_USER: instagram
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?defina DB_PASSWORD}
+      TZ: America/Sao_Paulo
+    volumes:
+      - dados-banco:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U instagram -d instagram"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    mem_limit: 256m
+
+  web:
+    image: ghcr.io/raphael-sena/instagram-manager-web:${APP_TAG:?defina APP_TAG}
+    restart: unless-stopped
+    <<: *logs
+    depends_on:
+      postgres: { condition: service_healthy }
+    environment:
+      # DB_PASSWORD é hexadecimal (docs/deploy.md): entra na URL sem escape
+      DATABASE_URL: postgres://instagram:${DB_PASSWORD}@postgres:5432/instagram
+      APP_VERSION: ${APP_TAG}
+      NODE_OPTIONS: --max-old-space-size=256
+      TZ: America/Sao_Paulo
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+    mem_limit: 384m
+
+  worker:
+    image: ghcr.io/raphael-sena/instagram-manager-worker:${APP_TAG}
+    restart: unless-stopped
+    <<: *logs
+    depends_on:
+      # o web aplica as migrations no boot; o worker só sobe depois
+      web: { condition: service_healthy }
+    environment:
+      DATABASE_URL: postgres://instagram:${DB_PASSWORD}@postgres:5432/instagram
+      APP_VERSION: ${APP_TAG}
+      HEARTBEAT_FILE: /tmp/worker-heartbeat
+      NODE_OPTIONS: --max-old-space-size=256
+      TZ: America/Sao_Paulo
+    healthcheck:
+      # o worker reescreve o arquivo a cada minuto; 3 min sem escrever = parado
+      test: ["CMD-SHELL", "test $$(( $$(date +%s) - $$(stat -c %Y /tmp/worker-heartbeat) )) -lt 180"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+    stop_grace_period: 30s
+    mem_limit: 384m
+
+  # Túnel da Cloudflare. No painel, o Public Hostname instagram.kvaris.com.br aponta para http://web:3000
+  cloudflared:
+    image: cloudflare/cloudflared:2026.10.0
+    restart: unless-stopped
+    <<: *logs
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:?defina CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - web
+    mem_limit: 128m
+
+  backup:
+    image: ghcr.io/raphael-sena/instagram-manager-backup:${APP_TAG}
+    restart: unless-stopped
+    <<: *logs
+    depends_on:
+      # o web cria o esquema ao subir; antes disso não há o que salvar
+      web: { condition: service_healthy }
+    environment:
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGUSER: instagram
+      PGPASSWORD: ${DB_PASSWORD}
+      PGDATABASE: instagram
+      BACKUP_DIR: /backups
+      BACKUP_PASSPHRASE: ${BACKUP_PASSPHRASE:?defina BACKUP_PASSPHRASE}
+      BACKUP_EXIGIR_CRIPTOGRAFIA: "1"
+      BACKUP_RETENCAO_DIAS: "30"
+      BACKUP_INTERVALO_HORAS: "24"
+      BACKUP_HEARTBEAT_URL: ${BACKUP_HEARTBEAT_URL:-}
+      BACKUP_ENVIAR_CMD: 'rclone copy "$$1" r2:instagram-db-backup/'
+      # remoto "r2" do rclone. Token "backup": escrita só em instagram-db-backup — o token "app" (painel) não alcança os
+      # backups, e este não alcança as mídias.
+      RCLONE_CONFIG_R2_TYPE: s3
+      RCLONE_CONFIG_R2_PROVIDER: Cloudflare
+      RCLONE_CONFIG_R2_ENDPOINT: https://${R2_ACCOUNT_ID:?defina R2_ACCOUNT_ID}.r2.cloudflarestorage.com
+      RCLONE_CONFIG_R2_ACCESS_KEY_ID: ${R2_BACKUP_ACCESS_KEY_ID:?defina R2_BACKUP_ACCESS_KEY_ID}
+      RCLONE_CONFIG_R2_SECRET_ACCESS_KEY: ${R2_BACKUP_SECRET_ACCESS_KEY:?defina R2_BACKUP_SECRET_ACCESS_KEY}
+      RCLONE_CONFIG_R2_NO_CHECK_BUCKET: "true"
+      # o R2 responde 501 ao HEAD ?versionId=… que o rclone faz depois de cada envio; o envio em si dá certo (visto no Bellitas)
+      RCLONE_CONFIG_R2_NO_HEAD: "true"
+      TZ: America/Sao_Paulo
+    volumes:
+      - backups:/backups
+    mem_limit: 128m
+
+volumes:
+  dados-banco:
+  backups:
