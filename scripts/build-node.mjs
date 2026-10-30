@@ -2,7 +2,7 @@
 import { build } from "esbuild";
 
 await build({
-  entryPoints: { worker: "src/worker/index.ts", migrate: "src/db/migrate.ts" },
+  entryPoints: { worker: "src/worker/index.ts", migrate: "src/db/migrate.ts", "admin-reset": "src/db/admin-reset.ts" },
   outdir: "dist",
   outExtension: { ".js": ".mjs" },
   bundle: true,

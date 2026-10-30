@@ -34,6 +34,9 @@ Repositório → **Settings → Environments → New environment** → `producti
 | `SSH_KEY` | Chave privada de deploy (pode ser a mesma do Bellitas) |
 | `SSH_KNOWN_HOSTS` | Saída de `ssh-keyscan -t ed25519 <IP da VPS>` |
 | `DB_PASSWORD` | `openssl rand -hex 24` (**precisa ser hexadecimal**: vai dentro da URL do banco) |
+| `APP_ENCRYPTION_KEY` | `openssl rand -base64 32` — chave-mestra das credenciais do painel. **Guarde no gerenciador de senhas**: sem ela, tudo que foi cadastrado no painel precisa ser cadastrado de novo |
+| `AUTH_SECRET` | `openssl rand -base64 32` (assina as sessões) |
+| `SETUP_TOKEN` | `openssl rand -hex 16` — código do primeiro acesso. Guarde: é pedido no `/setup` |
 | `BACKUP_PASSPHRASE` | `openssl rand -base64 32` — **guarde no gerenciador de senhas**: sem ela os backups não abrem |
 | `R2_ACCOUNT_ID` | Account ID da Cloudflare |
 | `R2_BACKUP_ACCESS_KEY_ID` | Do passo 1 |
@@ -48,11 +51,23 @@ gh secret set DB_PASSWORD --env production --body "$(openssl rand -hex 24)"
 gh secret set CLOUDFLARE_TUNNEL_TOKEN --env production   # cola o valor quando pedir
 ```
 
-### 4. Primeiro deploy
+### 4. Facebook Login no app da Meta
+No app criado na fase 0: **adicionar o produto Facebook Login** (ou Facebook Login for Business) e, em **Configurações → URIs de redirecionamento do OAuth válidos**, cadastrar:
+```
+https://instagram.kvaris.com.br/api/auth/callback/facebook
+```
+
+### 5. Primeiro deploy
 **Actions → CD · Produção → Run workflow** (ou o próximo merge na `main`). Na primeira vez não há backup pré-atualização. Ao fim, `https://instagram.kvaris.com.br/api/health` responde:
 ```json
 {"status":"ok","versao":"sha-…","banco":"ok","worker":"ok"}
 ```
+
+### 6. Primeiro acesso
+1. Abra `https://instagram.kvaris.com.br` → cai em `/setup`.
+2. Informe o `SETUP_TOKEN`, o App ID, o App Secret e (opcional) o seu e-mail para o link mágico.
+3. **Entrar com Facebook** no mesmo navegador: a sua conta do Facebook vira a única autorizada e o `/setup` se fecha.
+4. No **Painel de admin**: token do System User, credenciais do R2 (bucket de mídias) e Resend — cada um com o botão de teste.
 
 ## Operação
 
@@ -63,6 +78,7 @@ gh secret set CLOUDFLARE_TUNNEL_TOKEN --env production   # cola o valor quando p
 | Voltar uma versão | **Run workflow** informando a imagem anterior (`sha-…`, ver em Actions ou no GHCR) |
 | Backup agora | `ssh kvaris-test 'cd /opt/instagram && docker compose exec -T backup bash scripts/backup/backup.sh'` |
 | Restaurar | Baixar o `.tar.gpg` do bucket `instagram-db-backup` e rodar `scripts/backup/restaurar.sh <arquivo> --banco instagram_restaurado` (restaura num banco **novo**; conferir antes de trocar) |
+| Recuperar acesso (perdeu o Facebook e o e-mail) | `ssh kvaris-test 'cd /opt/instagram && docker compose exec web node dist/admin-reset.mjs'` → encerra as sessões e reabre o `/setup` (pede o `SETUP_TOKEN`) |
 | Ensaio de backup | `PGPASSWORD=… scripts/backup/testar-backup.sh` (também roda em todo CI) |
 
 ## Memória

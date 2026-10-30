@@ -172,7 +172,7 @@ Há um problema de ovo e galinha: o login com Facebook depende do App ID e do Ap
 2. O assistente pede **App ID e App Secret** da Meta, e o login com Facebook passa a funcionar.
 3. **Entrar com Facebook**: o seu ID do Facebook vira o **único usuário autorizado**.
 4. O `/setup` é **trancado** para sempre. A partir daí, o restante (token do System User, R2, Resend, e-mails) é configurado no painel normal, já logado.
-5. **Recuperação**, se perder o acesso: um comando na VPS (`docker compose exec web npm run admin:reset`) reabre o `/setup`. Só quem tem SSH na máquina consegue.
+5. **Recuperação**, se perder o acesso: um comando na VPS (`docker compose exec web node dist/admin-reset.mjs`) encerra as sessões e reabre o `/setup`. Só quem tem SSH na máquina consegue.
 
 ## Alternativas consideradas
 
