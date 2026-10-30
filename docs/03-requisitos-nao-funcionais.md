@@ -25,7 +25,7 @@
   - Algum destino `FALHOU` ou `AGUARDANDO_CONFIRMACAO`: a mídia fica guardada por **até 24 h** para permitir tentar de novo, e depois é apagada.
   - Rascunhos e agendamentos futuros mantêm a mídia até serem publicados ou excluídos.
   - Um job de limpeza remove mídias órfãs (uploads abandonados).
-- O App Secret da Meta e as demais credenciais ficam em variáveis de ambiente ou num gerenciador de segredos, fora do repositório.
+- Credenciais de integração (App Secret da Meta, token do System User, R2, Resend) ficam no banco, criptografadas com a chave-mestra, e são geridas pelo painel de admin (RF13). Só os segredos de bootstrap ficam em variáveis de ambiente. Nada disso vai para o repositório.
 
 ## RNF05 — Observabilidade
 - Log de cada chamada à API da Meta por destino (endpoint, resposta, código de erro), consultável na tela do destino.

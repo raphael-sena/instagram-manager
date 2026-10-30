@@ -9,6 +9,7 @@ Documentação de produto e de integração, escrita **antes** de qualquer decis
 | [03 — Requisitos não funcionais](03-requisitos-nao-funcionais.md) | Segurança, confiabilidade, responsividade, custos |
 | [04 — Integração com a Meta](04-integracao-meta.md) | Como a API do Instagram funciona, autenticação, fluxo de publicação, limites e especificações de mídia |
 | [05 — Decisões](05-decisoes-em-aberto.md) | Decisões de produto tomadas e decisões técnicas pendentes |
+| [06 — Stack e infraestrutura](06-proposta-de-stack.md) | Arquitetura, tecnologias, hospedagem e custos |
 
 ## Glossário
 
