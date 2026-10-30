@@ -10,6 +10,8 @@ Documentação de produto e de integração, escrita **antes** de qualquer decis
 | [04 — Integração com a Meta](04-integracao-meta.md) | Como a API do Instagram funciona, autenticação, fluxo de publicação, limites e especificações de mídia |
 | [05 — Decisões](05-decisoes-em-aberto.md) | Decisões de produto tomadas e decisões técnicas pendentes |
 | [06 — Stack e infraestrutura](06-proposta-de-stack.md) | Arquitetura, tecnologias, hospedagem e custos |
+| [07 — Plano de implementação](07-plano-de-implementacao.md) | Fases, entregas, modelo de dados e riscos |
+| [Guia — Fase 0](guias/fase-0-preparacao.md) | Passo a passo das configurações manuais (Meta, Business Manager, R2) |
 
 ## Glossário
 
